@@ -41,12 +41,21 @@ class MonthlyAssessmentGenerator:
         # Создаем папку результатов
         os.makedirs(result_folder, exist_ok=True)
 
-    def get_working_days_september_2025(self) -> List[str]:
-        """Возвращает список рабочих дней (пн-пт) сентября 2025 года"""
+    def get_working_days_for_month(self, year: int, month: int) -> List[str]:
+        """Универсальная функция для получения рабочих дней любого месяца"""
         from datetime import datetime, timedelta
         working_days = []
-        start_date = datetime(2025, 9, 1)
-        end_date = datetime(2025, 9, 30)
+        
+        # Определяем последний день месяца
+        if month == 12:
+            next_month = datetime(year + 1, 1, 1)
+        else:
+            next_month = datetime(year, month + 1, 1)
+        
+        last_day = (next_month - timedelta(days=1)).day
+        
+        start_date = datetime(year, month, 1)
+        end_date = datetime(year, month, last_day)
         
         current_date = start_date
         while current_date <= end_date:
@@ -55,6 +64,22 @@ class MonthlyAssessmentGenerator:
             current_date += timedelta(days=1)
         
         return working_days
+    
+    def get_working_days_september_2025(self) -> List[str]:
+        """Возвращает список рабочих дней (пн-пт) сентября 2025 года"""
+        return self.get_working_days_for_month(2025, 9)
+    
+    def get_working_days_october_2025(self) -> List[str]:
+        """Возвращает список рабочих дней (пн-пт) октября 2025 года"""
+        return self.get_working_days_for_month(2025, 10)
+    
+    def get_working_days_november_2025(self) -> List[str]:
+        """Возвращает список рабочих дней (пн-пт) ноября 2025 года"""
+        return self.get_working_days_for_month(2025, 11)
+    
+    def get_working_days_december_2025(self) -> List[str]:
+        """Возвращает список рабочих дней (пн-пт) декабря 2025 года"""
+        return self.get_working_days_for_month(2025, 12)
     
     def calculate_average_grade(self, grades: List[float]) -> float:
         """Вычисляет средний балл из списка оценок"""
@@ -114,8 +139,14 @@ class MonthlyAssessmentGenerator:
         self.student_data_cache[cache_key] = students
         return students
     
-    def get_student_grades_from_subject(self, group_name: str, subject: str, student_fio: str) -> Tuple[List[float], int, int]:
+    def get_student_grades_from_subject(self, group_name: str, subject: str, student_fio: str, target_month: int = None) -> Tuple[List[float], int, int]:
         """Получает оценки, пропуски и количество занятий студента по предмету
+
+        Args:
+            group_name: название группы
+            subject: название предмета
+            student_fio: ФИО студента
+            target_month: номер месяца для фильтрации (9-12). Если None, обрабатывает все данные.
 
         Возвращает кортеж: (оценки, пропуски_в_занятиях, всего_занятий)
         где "занятия" считаются как количество отметок (оценка или "Н").
@@ -127,7 +158,7 @@ class MonthlyAssessmentGenerator:
         
         wb = self.load_workbook_cached(subject_file)
         if not wb:
-            return grades, absences
+            return grades, absences, lessons_count
         
         try:
             ws = wb.active
@@ -140,8 +171,26 @@ class MonthlyAssessmentGenerator:
                     break
             
             if student_row:
-                # Собираем оценки и пропуски
-                for c in range(3, ws.max_column + 1):
+                # Определяем диапазон столбцов для обработки
+                start_col = 3  # Столбец C (первые даты)
+                
+                if target_month:
+                    # Получаем даты для целевого месяца
+                    target_dates = self.get_working_days_for_month(2025, target_month)
+                    # Находим столбцы с датами целевого месяца
+                    month_columns = self._get_month_columns(ws, target_dates)
+                    if not month_columns:
+                        # Если столбцы с датами месяца не найдены, возвращаем пустые данные
+                        return grades, absences, lessons_count
+                else:
+                    # Обрабатываем все столбцы с датами
+                    month_columns = list(range(3, ws.max_column + 1))
+                
+                # Собираем оценки и пропуски только для целевого месяца
+                for c in month_columns:
+                    if c > ws.max_column:
+                        continue
+                        
                     grade = ws.cell(row=student_row, column=c).value
                     if grade is None or str(grade).strip() == "":
                         continue
@@ -156,6 +205,32 @@ class MonthlyAssessmentGenerator:
             logger.error(f"Ошибка при обработке предмета {subject} для студента {student_fio}: {e}")
         
         return grades, absences, lessons_count
+    
+    def _get_month_columns(self, ws, target_dates: List[str]) -> List[int]:
+        """Находит номера столбцов с датами целевого месяца
+        
+        Args:
+            ws: рабочая таблица Excel
+            target_dates: список дат в формате DD.MM.YYYY
+            
+        Returns:
+            List[int]: список номеров столбцов с датами целевого месяца
+        """
+        month_columns = []
+        target_dates_set = set(target_dates)
+        
+        # Проверяем заголовки (строка 1) начиная с столбца C (3)
+        for col in range(3, ws.max_column + 1):
+            cell_value = ws.cell(row=1, column=col).value
+            if cell_value and str(cell_value).strip() in target_dates_set:
+                month_columns.append(col)
+        
+        return month_columns
+    
+    def _get_month_name(self, month: int) -> str:
+        """Возвращает название месяца по номеру"""
+        month_names = {9: "сентябрь", 10: "октябрь", 11: "ноябрь", 12: "декабрь"}
+        return month_names.get(month, "неизвестный")
     
     def apply_header_styles(self, ws, headers: List[str]):
         """Применяет стили к заголовкам"""
@@ -184,9 +259,16 @@ class MonthlyAssessmentGenerator:
             adjusted_width = min(max_length + 2, 30)
             ws.column_dimensions[column_letter].width = adjusted_width
     
-    def process_group(self, wb: Workbook, group_name: str) -> int:
-        """Обрабатывает одну группу и возвращает количество студентов"""
-        logger.info(f"Обрабатываем группу: {group_name}")
+    def process_group(self, wb: Workbook, group_name: str, target_month: int = None) -> int:
+        """Обрабатывает одну группу и возвращает количество студентов
+        
+        Args:
+            wb: рабочая книга Excel
+            group_name: название группы
+            target_month: номер месяца для фильтрации (9-12). Если None, обрабатывает все данные.
+        """
+        month_info = f" за {self._get_month_name(target_month)}" if target_month else ""
+        logger.info(f"Обрабатываем группу: {group_name}{month_info}")
         
         # Создаем новый лист для группы
         ws = wb.create_sheet(title=group_name)
@@ -219,7 +301,7 @@ class MonthlyAssessmentGenerator:
             # Обрабатываем каждый предмет
             for col_idx, subject in enumerate(self.SUBJECTS, 2):
                 grades, subject_absences, subject_lessons = self.get_student_grades_from_subject(
-                    group_name, subject, student_fio
+                    group_name, subject, student_fio, target_month
                 )
                 
                 total_absences += subject_absences
@@ -396,15 +478,22 @@ class MonthlyAssessmentGenerator:
         matching_students.sort(key=lambda x: x[2], reverse=True)
         return matching_students
     
-    def get_all_student_grades(self, group_name: str, student_fio: str) -> Dict[str, Dict]:
+    def get_all_student_grades(self, group_name: str, student_fio: str, target_month: int = None) -> Dict[str, Dict]:
         """
         Получает все оценки студента по всем предметам
-        Возвращает словарь: {предмет: {'grades': [оценки], 'absences': количество_пропусков, 'average': средний_балл}}
+        
+        Args:
+            group_name: название группы
+            student_fio: ФИО студента
+            target_month: номер месяца для фильтрации (9-12). Если None, обрабатывает все данные.
+        
+        Returns:
+            Dict[str, Dict]: {предмет: {'grades': [оценки], 'absences': количество_пропусков, 'average': средний_балл}}
         """
         student_grades = {}
         
         for subject in self.SUBJECTS:
-            grades, absences = self.get_student_grades_from_subject(group_name, subject, student_fio)
+            grades, absences, lessons = self.get_student_grades_from_subject(group_name, subject, student_fio, target_month)
             average = self.calculate_average_grade(grades)
             
             student_grades[subject] = {
@@ -489,8 +578,12 @@ class MonthlyAssessmentGenerator:
             except ValueError:
                 print("[ОШИБКА] Введите корректный номер.", exc_info=True)
 
-    def create_monthly_assessment(self) -> str:
-        """Создает итоговую таблицу 'Месячная аттестация' с средними баллами по предметам"""
+    def create_monthly_assessment(self, month: int = None) -> str:
+        """Создает итоговую таблицу 'Месячная аттестация' с средними баллами по предметам
+        
+        Args:
+            month: номер месяца (9-12 для сентября-декабря 2025). Если None, создается общая аттестация.
+        """
         try:
             # Получаем список групп
             groups = self.get_groups()
@@ -502,16 +595,24 @@ class MonthlyAssessmentGenerator:
             wb = Workbook()
             wb.remove(wb.active)  # Удаляем стандартный лист
             
-            logger.info("Создаем листы для каждой группы...")
+            month_names = {9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"}
+            
+            if month:
+                logger.info(f"Создаем месячную аттестацию за {month_names[month]} 2025...")
+            else:
+                logger.info("Создаем общую месячную аттестацию...")
             
             total_students = 0
             for group_name in groups:
-                students_count = self.process_group(wb, group_name)
+                students_count = self.process_group(wb, group_name, month)
                 total_students += students_count
             
             # Сохраняем файл
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            filename = os.path.join(self.result_folder, f"Месячная аттестация_{timestamp}.xlsx")
+            if month:
+                filename = os.path.join(self.result_folder, f"Месячная аттестация_{month_names[month]}_2025_{timestamp}.xlsx")
+            else:
+                filename = os.path.join(self.result_folder, f"Месячная аттестация_{timestamp}.xlsx")
             wb.save(filename)
             
             logger.info(f"Файл сохранен: {filename}")
@@ -544,7 +645,9 @@ def search_student_grades():
         while True:
             print("\nВыберите действие:")
             print("1. Найти студента и показать оценки")
-            print("2. Создать месячную аттестацию")
+            print("2. Создать месячную аттестацию (общую)")
+            print("3. Создать месячную аттестацию за конкретный месяц")
+            print("4. Создать аттестации за все месяцы (сентябрь-декабрь)")
             print("0. Выход")
             
             choice = input("\nВведите номер действия: ").strip()
@@ -557,12 +660,52 @@ def search_student_grades():
                     print("[ОШИБКА] Введите ФИО студента.")
             
             elif choice == "2":
-                print("\n[СОЗДАНИЕ] Месячной аттестации...")
+                print("\n[СОЗДАНИЕ] Общей месячной аттестации...")
                 result = generator.create_monthly_assessment()
                 if result:
                     print(f"[УСПЕХ] Аттестация создана: {result}")
                 else:
                     print("[ОШИБКА] При создании аттестации.")
+            
+            elif choice == "3":
+                print("\nВыберите месяц для создания аттестации:")
+                print("9. Сентябрь 2025")
+                print("10. Октябрь 2025")
+                print("11. Ноябрь 2025")
+                print("12. Декабрь 2025")
+                
+                month_choice = input("Введите номер месяца (9-12): ").strip()
+                try:
+                    month = int(month_choice)
+                    if month in [9, 10, 11, 12]:
+                        month_names = {9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"}
+                        print(f"\n[СОЗДАНИЕ] Аттестации за {month_names[month]} 2025...")
+                        result = generator.create_monthly_assessment(month)
+                        if result:
+                            print(f"[УСПЕХ] Аттестация создана: {result}")
+                        else:
+                            print("[ОШИБКА] При создании аттестации.")
+                    else:
+                        print("[ОШИБКА] Неверный номер месяца. Введите число от 9 до 12.")
+                except ValueError:
+                    print("[ОШИБКА] Введите корректный номер месяца.")
+            
+            elif choice == "4":
+                print("\n[СОЗДАНИЕ] Аттестаций за все месяцы (сентябрь-декабрь 2025)...")
+                months = [9, 10, 11, 12]
+                month_names = {9: "сентября", 10: "октября", 11: "ноября", 12: "декабря"}
+                
+                success_count = 0
+                for month in months:
+                    print(f"Создаем аттестацию за {month_names[month]}...")
+                    result = generator.create_monthly_assessment(month)
+                    if result:
+                        print(f"✓ Аттестация за {month_names[month]} создана")
+                        success_count += 1
+                    else:
+                        print(f"✗ Ошибка при создании аттестации за {month_names[month]}")
+                
+                print(f"\n[РЕЗУЛЬТАТ] Создано аттестаций: {success_count} из {len(months)}")
             
             elif choice == "0":
                 print("\nДо свидания!")

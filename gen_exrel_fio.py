@@ -19,9 +19,9 @@ def generate_person_data():
     for i in range(num_people):
         # Генерируем полную информацию о человеке
         person = {
-            'фамилия': fake.last_name(),
-            'имя': fake.first_name(),
-            'отчество': fake.middle_name(),
+            'фамилия': fake.last_name_male(),
+            'имя': fake.first_name_male(),
+            'отчество': fake.middle_name_male(),
         }
         people.append(person)
         
@@ -135,4 +135,5 @@ if __name__ == "__main__":
     print("- От 20 до 30 студентов в каждой группе")
     print("\nСписок групп:")
     for i, group_name in enumerate(group, 1):
+
         print(f"{i:2d}. {group_name}")

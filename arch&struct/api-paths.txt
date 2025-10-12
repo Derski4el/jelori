@@ -47,3 +47,37 @@ EXAMPLE Result-download  / ?file="АвтоЕжемесячнаяАтестаци
 
 
 ######################
+get /single/search
+?q=None/string - Ф/И/О студента
+Поиск студента 
+EXAMPLE Result-json /single/search?q="Иванов Иван"
+{"status":"ok", result:[{"fio":"Иванов Иван Иванович","group":"Исип-111"},{"fio":"Иванов Иван Артемович","group":"Зио-102"}]}
+
+
+######################
+post /single/move
+?orgroup=string - Ориг группа
+?newgroup=string - Новая группа
+?stud=string - фио студента
+Перевод студента в другую группу
+EXAMPLE Result-json /single/search?q="Иванов Иван Иванович"&orgroup="Исип-111"&newgroup="Исип-102" 
+{"status":"ok"}
+
+EXAMPLE Result-json /single/search?q="Иванов Иван Иванович"&orgroup="Исип-111"&newgroup="Исиа-102" 
+{"status": "error","error":"Не существует Исиа-102"}
+
+
+######################
+post /single/delete
+?orgroup=string - Ориг группа
+?stud=string - фио студента
+Отчисление студента
+EXAMPLE Result-json /single/search?q="Иванов Иван Иванович"&orgroup="Исип-111" 
+{"status":"ok"}
+
+
+######################
+post /single/stats
+?orgroup=string - Ориг группа
+?stud=string - фио студента
+В продумывании ! статистика (пропуски отметки)

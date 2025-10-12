@@ -1,0 +1,49 @@
+пояснения и ресурсы
+None значит что http.query.param может быть не указан
+https://jsonformatter.curiousconcept.com/# 
+https://jsonformatter.org/   (просмотр дерева, 1-я кнопка{развернуть все} )
+Разделение страниц через 22 #
+
+
+######################
+get /attestation
+Показывает список файлов атестаций
+EXAMPLE Result-json
+{"files":[{"filename":"Атестация1"},{"filename":"Атестация2"}]}
+
+
+######################
+post /attestation
+?month=None/string - месяц
+Формирование файла атестации
+EXAMPLE Result-json  /attestation
+{"status":"Ok"}
+
+EXAMPLE Result-json  /attestation?month=10
+{"status":"Ok"}
+
+
+######################
+get /view-attestation
+?file=string - файл атестации
+Просмотр файла атестации
+EXAMPLE Result-json  /view-attestation?file="АвтоЕжемесячнаяАтестация19.xlsx"  (этот файл не существует)
+{"status":"error", "error":"файл не существует"}
+
+EXAMPLE Result-json  /view-attestation?file="АвтоЕжемесячнаяАтестация09.xlsx"  (Файл существует)
+{"status":"ok","result":{"group1":[["Договор","Фио","Математика"],["1101","Иванов Иван Иванович","5"],["1102","Иванова Екатерина Ивановна","4"]],"group2":[["Договор","Фио","Русский язык"],["2101","Петров Антон Иванович","4"],["2102","Морозова Полина Андреевна","3"]]}}
+
+
+######################
+post /view-attestation
+?file=string - файл атестации
+?fioff=None/true - Скрыть фио
+Cкачивание файла атестации
+EXAMPLE Result-download  / ?file="АвтоЕжемесячнаяАтестация09.xlsx"&fioff=true
+скачивание файла АвтоЕжемесячнаяАтестация09.xlsx (уже скрыты фио)
+
+EXAMPLE Result-download  / ?file="АвтоЕжемесячнаяАтестация09.xlsx"
+скачивание файла АвтоЕжемесячнаяАтестация09.xlsx (фио присутствуют)
+
+
+######################
